@@ -108,6 +108,9 @@ const fields = [
   { key: 'hf', label: 'H₂O管终质量', placeholder: '如 30.5678' },
 ]
 
+// 只保存测量字段，不覆盖炉布局设置的 furnaceId/slotPosition/h2oTubeId
+const MEASUREMENT_KEYS = new Set(fields.map(f => f.key))
+
 const emptyForm = () => ({ hi: '', hf: '', furnaceId: '', slotPosition: '', h2oTubeId: '' })
 const group1 = reactive(emptyForm())
 const group2 = reactive(emptyForm())
@@ -131,7 +134,9 @@ function loadFromStore() {
 }
 
 function saveGroup(group, data) {
-  Object.entries(data).forEach(([key, val]) => updateField(PAGE, group, key, val))
+  Object.entries(data).forEach(([key, val]) => {
+    if (MEASUREMENT_KEYS.has(key)) updateField(PAGE, group, key, val)
+  })
 }
 
 function onUpdateGroup1(data) { Object.assign(group1, data); saveGroup('group1', data) }

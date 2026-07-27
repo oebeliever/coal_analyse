@@ -101,27 +101,35 @@
         <!-- 增量显示 -->
         <div class="inc-display" v-if="getIncrement(gi)">
           <div v-if="gi === 0" class="inc-row">
-            <span class="inc-label">第1组增量（G1 − 初始）</span>
+            <span class="inc-label">第1组增量 Δ₁ （G1 − 初始）</span>
             <span class="inc-values">
-              H₂O: <strong :class="valClass(getIncrement(gi).h2o, H2O_TOLERANCE)">{{ getIncrement(gi).h2o.toFixed(5) }}</strong>
+              H₂O: <strong>{{ getIncrement(gi).h2o.toFixed(5) }}</strong>
               | CO₂①: <strong>{{ getIncrement(gi).co2_1.toFixed(5) }}</strong>
               | CO₂②: <strong>{{ getIncrement(gi).co2_2.toFixed(5) }}</strong>
             </span>
           </div>
           <div v-else class="inc-row">
-            <span class="inc-label">第{{ gi + 1 }}组增量（G{{ gi + 1 }} − G{{ gi }}）恒重检查</span>
+            <span class="inc-label">第{{ gi + 1 }}组增量 Δ{{ gi + 1 }}（G{{ gi + 1 }} − G{{ gi }}）|Δ{{ gi+1 }}−Δ{{ gi }}| 恒重检查</span>
             <span class="inc-values">
-              H₂O: <strong :class="valClass(getIncrement(gi).h2o, H2O_TOLERANCE)">{{ getIncrement(gi).h2o.toFixed(5) }}</strong>
-              | CO₂①: <strong :class="valClass(getIncrement(gi).co2_1, CO2_TOLERANCE)">{{ getIncrement(gi).co2_1.toFixed(5) }}</strong>
-              | CO₂②: <strong :class="valClass(getIncrement(gi).co2_2, CO2_TOLERANCE)">{{ getIncrement(gi).co2_2.toFixed(5) }}</strong>
+              H₂O: {{ getIncrement(gi).h2o.toFixed(5) }}
+              差: <strong :class="compClass(getComparison(gi), 'h2o')">{{ getComparison(gi).h2o.toFixed(5) }}</strong>
+              | CO₂①: {{ getIncrement(gi).co2_1.toFixed(5) }}
+              差: <strong :class="compClass(getComparison(gi), 'co2_1')">{{ getComparison(gi).co2_1.toFixed(5) }}</strong>
+              | CO₂②: {{ getIncrement(gi).co2_2.toFixed(5) }}
+              差: <strong :class="compClass(getComparison(gi), 'co2_2')">{{ getComparison(gi).co2_2.toFixed(5) }}</strong>
             </span>
             <span class="inc-accept" v-if="getAcceptance(gi)">
-              <span v-if="getAcceptance(gi).passed" class="accept-pass">✅ 恒重合格</span>
+              <span v-if="getAcceptance(gi).passed" class="accept-pass">
+                ✅ 恒重合格（
+                H₂O差:{{ getComparison(gi).h2o.toFixed(5) }}≤0.0010,
+                CO₂①差:{{ getComparison(gi).co2_1.toFixed(5) }}≤0.0005,
+                CO₂②差:{{ getComparison(gi).co2_2.toFixed(5) }}≤0.0005）
+              </span>
               <span v-else class="accept-fail">
                 ❌ 不合格：
-                <template v-if="!getAcceptance(gi).h2o">H₂O > 0.0010; </template>
-                <template v-if="!getAcceptance(gi).co2_1">CO₂① > 0.0005; </template>
-                <template v-if="!getAcceptance(gi).co2_2">CO₂② > 0.0005</template>
+                <template v-if="!getAcceptance(gi).h2o">H₂O差{{ getComparison(gi).h2o.toFixed(5) }}>0.0010; </template>
+                <template v-if="!getAcceptance(gi).co2_1">CO₂①差{{ getComparison(gi).co2_1.toFixed(5) }}>0.0005; </template>
+                <template v-if="!getAcceptance(gi).co2_2">CO₂②差{{ getComparison(gi).co2_2.toFixed(5) }}>0.0005</template>
               </span>
             </span>
           </div>
@@ -131,7 +139,7 @@
       <!-- 补充组按钮 -->
       <button class="add-group-btn" @click="onAddGroup"
         :disabled="!hasInitialAndFirstGroup">
-        ➕ 补充空白组（再次燃烧后称量）
+        ➕ 添加下一组空白实验（再次燃烧后称量）
       </button>
 
       <!-- 当前判定结果 -->
@@ -141,7 +149,7 @@
           <div class="result-text">
             <div class="result-title">系统已恒重</div>
             <div class="result-m3">m₃ = <strong>{{ m3Formatted }}</strong> g</div>
-            <div class="result-note">该值作为 H₂O 吸收管空白值用于氢含量计算</div>
+            <div class="result-note">取相邻两组合格增量的平均值，作为 H₂O 吸收管空白值用于氢含量计算</div>
           </div>
         </div>
       </div>
@@ -161,7 +169,7 @@ const {
   updateInitial, addGroup, updateGroup, removeGroup,
   deleteSession, updateSessionNote,
   getCurrentM3, getCurrentM3Formatted,
-  calcGroupIncrement, checkAcceptance,
+  calcGroupIncrement, calcIncrementComparison, checkAcceptance,
   H2O_TOLERANCE, CO2_TOLERANCE,
 } = useBlankStore()
 
@@ -186,16 +194,22 @@ function getAcceptance(gi) {
   return checkAcceptance(session.value, gi)
 }
 
+function getComparison(gi) {
+  if (!session.value) return null
+  return calcIncrementComparison(session.value, gi)
+}
+
 function calcSessionM3(s) {
   for (let i = 1; i < s.groups.length; i++) {
-    const inc = calcGroupIncrement(s, i)
-    if (!inc) continue
-    const h2o_ok = Math.abs(inc.h2o) <= H2O_TOLERANCE
-    const co2_1_ok = Math.abs(inc.co2_1) <= CO2_TOLERANCE
-    const co2_2_ok = Math.abs(inc.co2_2) <= CO2_TOLERANCE
+    const comp = calcIncrementComparison(s, i)
+    if (!comp) continue
+    const h2o_ok = Math.abs(comp.h2o) <= H2O_TOLERANCE
+    const co2_1_ok = Math.abs(comp.co2_1) <= CO2_TOLERANCE
+    const co2_2_ok = Math.abs(comp.co2_2) <= CO2_TOLERANCE
     if (h2o_ok && co2_1_ok && co2_2_ok) {
+      const inc = calcGroupIncrement(s, i)
       const prevInc = calcGroupIncrement(s, i - 1)
-      if (prevInc) return prevInc.h2o
+      if (inc && prevInc) return (prevInc.h2o + inc.h2o) / 2
     }
   }
   if (s.groups.length >= 1) {
@@ -213,6 +227,11 @@ function calcSessionM3Formatted(s) {
 function valClass(val, tolerance) {
   if (Math.abs(val) <= tolerance) return 'val-pass'
   return 'val-fail'
+}
+
+function compClass(comp, field) {
+  if (!comp) return ''
+  return Math.abs(comp[field]) <= (field === 'h2o' ? H2O_TOLERANCE : CO2_TOLERANCE) ? 'val-pass' : 'val-fail'
 }
 
 function onNewSession() {
